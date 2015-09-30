@@ -1,0 +1,5 @@
+<linker>
+   <assembly fullname="IMVUnity">
+        <type fullname="IMVU.*" preserve="all"/>
+    </assembly>
+</linker>

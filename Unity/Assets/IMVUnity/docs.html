@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="pandoc">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <!--[if lt IE 9]>
+    <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <style type="text/css">
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; background-color: #f8f8f8; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+pre, code { background-color: #f8f8f8; }
+code > span.kw { color: #204a87; font-weight: bold; }
+code > span.dt { color: #204a87; }
+code > span.dv { color: #0000cf; }
+code > span.bn { color: #0000cf; }
+code > span.fl { color: #0000cf; }
+code > span.ch { color: #4e9a06; }
+code > span.st { color: #4e9a06; }
+code > span.co { color: #8f5902; font-style: italic; }
+code > span.ot { color: #8f5902; }
+code > span.al { color: #ef2929; }
+code > span.fu { color: #000000; }
+code > span.er { font-weight: bold; }
+  </style>
+</head>
+<body>
+<nav id="TOC">
+<ul>
+<li><a href="#imvu-api-for-unity">IMVU API for Unity</a><ul>
+<li><a href="#setup">Setup</a></li>
+<li><a href="#simplest-example">Simplest Example</a></li>
+<li><a href="#rest">REST</a><ul>
+<li><a href="#restmodel-class">RestModel Class</a></li>
+<li><a href="#restcollection-class">RestCollection Class</a></li>
+<li><a href="#usermodel-class">UserModel Class</a></li>
+<li><a href="#outfitmodel-class">OutfitModel class</a></li>
+<li><a href="#feedelementmodel-class">FeedElementModel Class</a></li>
+<li><a href="#friendcollection-class">FriendCollection Class</a></li>
+<li><a href="#outfitcollection-class">OutfitCollection class</a></li>
+<li><a href="#feedelementcollection-class">FeedElementCollection Class</a></li>
+<li><a href="#imvu-class">Imvu Class</a></li>
+</ul></li>
+<li><a href="#asset-loading">Asset Loading</a><ul>
+<li><a href="#localassetloader">LocalAssetLoader</a></li>
+<li><a href="#unetassetloader">UNetAssetLoader</a></li>
+<li><a href="#photonassetloader">PhotonAssetLoader</a></li>
+<li><a href="#assetinfo">AssetInfo</a></li>
+<li><a href="#specifying-levels-of-detail">Specifying levels of detail</a></li>
+<li><a href="#textureloader">TextureLoader</a></li>
+</ul></li>
+<li><a href="#common-classes">Common Classes</a><ul>
+<li><a href="#error">Error</a></li>
+<li><a href="#result">Result</a></li>
+<li><a href="#promise">Promise</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="imvu-api-for-unity">IMVU API for Unity</h1>
+<p>The IMVU API for Unity (IMVUnity) is a library that allows you to load IMVU's assets (avatars and outfits) from within the Unity game engine via a set of IMVU APIs. There are two main parts to this library: The REST APIs and the AssetLoader.</p>
+<p>This document is split into the following sections:</p>
+<ol type="1">
+<li>Setup</li>
+<li>Sample Code - A quick example of logging in and loading an avatar.</li>
+<li>REST - How to use the REST APIs.</li>
+<li>Asset Loading - How to load assets.</li>
+<li>Common Classes - Documentation of some common classes used in this API, such as <code>Result</code> and <code>Promise</code>.</li>
+</ol>
+<h2 id="setup">Setup</h2>
+<p>To install IMVUnity, open the IMVUnity.unitypackage in Unity. It will add all of the files to your project. Remember, imports are additive in Unity. When upgrading to a new version of a unity package you should first delete the old one.</p>
+<p>In order for our avatars to render properly you also need to add the IMVUnity shaders to your Always Loaded Shaders. To do this, open Edit-&gt;Project Settings-&gt;Graphics, and add the shaders that are in the IMVUnity/Shaders folder to the Always Included Shaders list. This Unity documentation should prove useful: http://docs.unity3d.com/Manual/class-GraphicsSettings.html</p>
+<p>In order for the login or feed post UIs to work properly, your scene needs an <code>EventSystem</code> in it. Right-click on an empty space in the Heirarchy view, and go to UI -&gt; EventSystem to create one.</p>
+<h2 id="simplest-example">Simplest Example</h2>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">using</span> IMVU;
+
+<span class="kw">class</span> TestLoader : LocalAssetLoader {
+    <span class="dt">void</span> <span class="fu">Start</span>() {
+        Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+            userModel =&gt; <span class="fu">Load</span>(userModel)
+        ).<span class="fu">Catch</span>(
+            error =&gt; Debug.<span class="fu">LogError</span>(error)
+        );
+    }
+}</code></pre>
+<p>The login process is handled for you when you call <code>Imvu.Login()</code>. This returns a <code>Promise&lt;UserModel, Error&gt;</code>. Promises here function very much like JavaScript promises, and they're documented in more detail at the end of this document. Then it calls <code>Load()</code>, a function inherited from <code>LocalAssetLoader</code>, which loads an IMVU avatar from a <code>UserModel</code> onto this <code>GameObject</code>. This returns a <code>Promise&lt;AssetInfo, Error&gt;</code>. The avatar will already be setup to work with Mecanim, so if you've placed an <code>Animator</code> on it it'll already be animating.</p>
+<p>If there are any actual errors at either step, it will fall through to the <code>Catch()</code> and log the error.</p>
+<h2 id="rest">REST</h2>
+<p>The REST APIs, at their root, are a set of HTTP-based APIs for accessing IMVU. Inside IMVUnity this is hidden behind a clean, strongly-typed API. Aside from the fact that many operations are asynchronous, you don't have to worry about the fact that there are HTTP requests behind the scenes. The REST APIs are accessed through <code>RestModel</code> and <code>RestCollection</code> classes.</p>
+<h3 id="restmodel-class">RestModel Class</h3>
+<p>A <code>RestModel</code> is a base class for representing a single data node. It is generic over the type it stores. It contains an <code>info</code> member variable of that type. For instance, <code>UserModel</code> is a subclass of <code>RestModel&lt;UserInfo&gt;</code>, and its <code>info</code> member variable will have type <code>UserInfo</code>.</p>
+<p>Each subclass of <code>RestModel</code> will also contain getters for each of the other data nodes related to it. These getters will always return another <code>RestModel</code>.</p>
+<p>The set of <code>RestModel</code>s that exist right now are: * <code>UserModel</code> - Data about a single user. * <code>OutfitModel</code> - Data about a saved outfit. * <code>FeedElementModel</code> - Data about a single feed post.</p>
+<h3 id="restcollection-class">RestCollection Class</h3>
+<p>A <code>RestCollection</code> is a base class for representing a list of data nodes. This looks like:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> RestCollection&lt;T&gt; : RestModel&lt;CollectionInfo&lt;T&gt;&gt; {
+    <span class="kw">public</span> CollectionInfo&lt;T&gt; info;
+
+    <span class="kw">public</span> Promise&lt;Unit, Error&gt; <span class="fu">NextPage</span>();
+    <span class="kw">public</span> <span class="kw">delegate</span> <span class="dt">void</span> <span class="fu">AddEventHandler</span>(T model);
+    <span class="kw">public</span> <span class="kw">event</span> AddEventHandler add;
+}</code></pre>
+<p>The <code>CollectionInfo</code> class is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> CollectionInfo&lt;T&gt; {
+    <span class="kw">public</span> List&lt;Promise&lt;T, Error&gt;&gt; items;
+    <span class="kw">public</span> <span class="dt">int</span> totalCount;
+}</code></pre>
+<p>It's generic over the type of <code>RestModel</code> it stores. Like <code>RestModel</code>, it contains an <code>info</code> member variable, with the type <code>RestCollection</code>, generic over the same type. For example, the <code>FriendCollection</code> inherits from <code>RestColletion&lt;UserModel&gt;</code>, and it's <code>info</code> member variable will have type <code>CollectionInfo&lt;UserModel&gt;</code>.</p>
+<p>Note that collections are paginated. The <code>totalCount</code> field represents the total size of the collection, which may be larger than the number currently loaded, which is why it needs to be a separate field instead of just using <code>items.Count</code>. Calling <code>NextPage()</code> will load the next page. The promise it returns will be accepted when the request for the next page is complete and populated into the collection, or rejected if the request fails. There is also the <code>add</code> event, which will be called each time a new element is added to the collection. Currently this only happens during loading. So you can respond to a new page loading either by using the promise returned by <code>NextPage</code>, or one element at a time by using the <code>add</code> event.</p>
+<p>The set of <code>RestCollection</code>s that exist right now are:</p>
+<ul>
+<li><code>FriendCollection</code> - A collection of <code>UserModel</code>s, obtained by calling <code>UserModel.GetFriends()</code>.</li>
+<li><code>OutfitCollection</code> - A collection of <code>OutfitModel</code>s, obtained by calling <code>UserModel.GetOutfits()</code>.</li>
+<li><code>FeedElementCollection</code> - A collection of <code>FeedElementModel</code>s, obtained by calling <code>UserModel.GetPersonalFeed()</code>, <code>UserModel.GetSubscribedFeed()</code> or <code>UserModel.GetRecommendedFeed()</code>.</li>
+</ul>
+<h3 id="usermodel-class">UserModel Class</h3>
+<p>This model represents a user:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> UserModel : RestModel&lt;UserInfo&gt; {
+    <span class="kw">public</span> UserInfo info;
+
+    <span class="co">// Get the user&#39;s friends</span>
+    <span class="kw">public</span> Promise&lt;FriendCollection, Error&gt; <span class="fu">GetFriends</span>(<span class="dt">int</span> limit = <span class="dv">0</span>);
+    <span class="co">// Get the user&#39;s saved outfits</span>
+    <span class="kw">public</span> Promise&lt;OutfitCollection, Error&gt; <span class="fu">GetOutfits</span>();
+    <span class="co">// Get the user&#39;s personal feed posts</span>
+    <span class="kw">public</span> Promise&lt;FeedElementCollection, Error&gt; <span class="fu">GetPersonalFeed</span>();
+    <span class="co">// Get the user&#39;s subscribed feed, which is the aggregate of their posts and their friends&#39; posts</span>
+    <span class="kw">public</span> Promise&lt;FeedElementCollection, Error&gt; <span class="fu">GetSubscribedFeed</span>();
+    <span class="co">// Get the user&#39;s recommended feed, which is a collection of whitelisted posts</span>
+    <span class="kw">public</span> Promise&lt;FeedElementCollection, Error&gt; <span class="fu">GetRecomendedFeed</span>();
+}</code></pre>
+<p>The <code>limit</code> argument to <code>GetFriends</code> determines the page size of the resulting <code>FriendCollection</code>. The default value of 0 means to use the server's default page size.</p>
+<p>The <code>UserInfo</code> data is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">struct</span> UserInfo {
+    <span class="kw">public</span> <span class="dt">string</span> gender;
+    <span class="kw">public</span> <span class="dt">string</span> country;
+    <span class="kw">public</span> <span class="dt">string</span> state;
+    <span class="kw">public</span> Uri thumbnailUrl;
+    <span class="kw">public</span> <span class="dt">bool</span> online;
+    <span class="kw">public</span> <span class="dt">string</span> username;
+}</code></pre>
+<p>You can use the <code>thumbnailUrl</code> URL to load the user's profile image. It's recommended to use the <code>TextureLoader</code> for this purpose.</p>
+<h3 id="outfitmodel-class">OutfitModel class</h3>
+<p>This model represents a saved outfit:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> OutfitModel : RestModel&lt;OutfitInfo&gt; {
+    <span class="kw">public</span> OutfitInfo info;
+}</code></pre>
+<p>The <code>OutfitInfo</code> data is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">public</span> <span class="kw">struct</span> OutfitInfo {
+    <span class="kw">public</span> <span class="dt">string</span> name;
+    <span class="kw">public</span> Uri image;
+}</code></pre>
+<p>You can use the <code>image</code> URL to load an image of the outfit. It's recommended to use the <code>TextureLoader</code> for this purpose.</p>
+<h3 id="feedelementmodel-class">FeedElementModel Class</h3>
+<p>This model represents a feed post:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> FeedElementModel : RestModel&lt;FeedElementInfo&gt; {
+    <span class="kw">public</span> FeedElementInfo info;
+
+    <span class="co">// Get the user who made this post</span>
+    <span class="kw">public</span> Promise&lt;UserModel, Error&gt; <span class="fu">GetUser</span>();
+}</code></pre>
+<p>The <code>FeedElementInfo</code> is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">struct</span> FeedElementInfo {
+    <span class="kw">public</span> <span class="dt">string</span> time;
+    <span class="kw">public</span> <span class="dt">string</span> type;
+    <span class="kw">public</span> FeedElementPayloadInfo payload;
+}
+
+<span class="kw">public</span> <span class="kw">struct</span> FeedElementPayloadInfo {
+    <span class="kw">public</span> <span class="dt">int</span> height;
+    <span class="kw">public</span> <span class="dt">int</span> width;
+    <span class="kw">public</span> Uri url;
+    <span class="kw">public</span> Uri thumbnailUrl;
+    <span class="kw">public</span> <span class="dt">string</span> message;
+}</code></pre>
+<p>The <code>type</code> field is one of <code>message</code> or <code>photo</code>. If it's a <code>message</code> post, then the only field of the payload that will be populated is <code>message</code>. If it's a <code>photo</code> post, then all the fields will be populated. You can use the <code>url</code> and <code>thumbnailUrl</code> URLs to load the attached image for a <code>photo</code> post. It's recommended to use the <code>TextureLoader</code> for this purpose.</p>
+<h3 id="friendcollection-class">FriendCollection Class</h3>
+<p>This collection represents a user's friend list:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> FriendCollection : RestCollection&lt;UserModel&gt; {
+    <span class="kw">public</span> CollectionInfo&lt;UserModel&gt; info;
+}</code></pre>
+<h3 id="outfitcollection-class">OutfitCollection class</h3>
+<p>This collection represents a set of saved outfits:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> OutfitCollection : RestCollection&lt;OutfitModel&gt; {
+    <span class="kw">public</span> CollectionInfo&lt;OutfitModel&gt; info;
+}</code></pre>
+<h3 id="feedelementcollection-class">FeedElementCollection Class</h3>
+<p>This collection represents a set of feed posts, generally just called a feed:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> FriendElementCollection : RestCollection&lt;FeedElementModel&gt; {
+    <span class="kw">public</span> CollectionInfo&lt;FeedElementModel&gt; info;
+
+    <span class="co">// Post an image to this feed</span>
+    <span class="kw">public</span> Promise&lt;FeedElementModel, Error&gt; <span class="fu">PostImage</span>(Texture2D image);
+}</code></pre>
+<p>Note that <code>PostImage()</code> is only valid on the personal feed of the currently logged-in user. If you call it on any other feed, it will fail. This call will pop up a confirmation dialog post showing the user the image you intend to post, so you can not post to the user's feed without their consent. If they choose not to post it, the promise will resolve to an error.</p>
+<h3 id="imvu-class">Imvu Class</h3>
+<p>The entry point to the whole API is the <code>Imvu</code> class. For the moment, this has one method:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> Imvu {
+    <span class="kw">public</span> <span class="kw">static</span> Promise&lt;UserModel, Error&gt; <span class="fu">Login</span>(<span class="dt">bool</span> cancelable = <span class="kw">false</span>);
+}</code></pre>
+<p>The <code>Login()</code> method will handle the whole login process for you. If you want the user to be able to cancel the login, pass in <code>true</code> for <code>cancelable</code>. Otherwise, they won't be able to proceed until they've successfully logged in. If <code>cancelable</code> isn't set, then the promise is guaranteed to resolve with either an error or a valid <code>UserModel</code>. If <code>cancelable</code> is set, and the user chooses to cancel, then the promise will resolve with a success, but the <code>UserModel</code> will be <code>null</code>.</p>
+<p>If you call <code>Login()</code> multiple times, it will always return the same promise, unless the user cancelled or the login failed. This means that if you need the logged-in user's <code>UserModel</code> in multiple places, you can call <code>Login()</code> from each of those places independently. When the user cancels or the login fails, the stored promise is cleared, which allows you to attempt to login again.</p>
+<h2 id="asset-loading">Asset Loading</h2>
+<p>In order to load an IMVU asset, you need to create a <code>GameObject</code> and put a <code>LocalAssetLoader</code> on it. If you want this loading to synchronize properly in a multiplayer experience, you'll also need a <code>UNetAssetLoader</code> or a <code>PhotonAssetLoader</code>, depending on whether you're using UNet or Photon for your network layer.</p>
+<h3 id="localassetloader">LocalAssetLoader</h3>
+<p>The <code>LocalAssetLoader</code> is a <code>MonoBehaviour</code>. If it's placed on a <code>GameObject</code>, you can then call its <code>Load()</code> method to load that asset onto that <code>GameObject</code>. Its signature is:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> LocalAssetLoader : MonoBehaviour {
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(UserModel user);
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(OutfitModel outfit);
+}</code></pre>
+<p>While the <code>LocalAssetLoader</code> can be used directly, it's also common to subclass it, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> MyAvatar : IMVU.<span class="fu">LocalAssetLoader</span> {
+    <span class="dt">void</span> <span class="fu">Start</span>() {
+        Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+            userModel =&gt; <span class="fu">Load</span>(userModel, Setup)
+        ).<span class="fu">Then</span>(
+            assetInfo =&gt; {
+                <span class="co">// do stuff with the avatar</span>
+            }
+        );
+    }
+}</code></pre>
+<h3 id="unetassetloader">UNetAssetLoader</h3>
+<p>The <code>UNetAssetLoader</code> has the same API as the <code>LocalAssetLoader</code>:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> UNetAssetLoader : NetworkBehaviour {
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(UserModel user);
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(OutfitModel outfit);
+}</code></pre>
+<p>The main feature of the <code>UnetAssetLoader</code> is that if <code>Load()</code> is called while connected to a UNet server, it will cause the same asset to be loaded on the matching <code>GameObject</code> on all clients.</p>
+<h3 id="photonassetloader">PhotonAssetLoader</h3>
+<p>The <code>PhotonAssetLoader</code> has the same API as the <code>LocalAssetLoader</code>:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> PhotonAssetLoader : Photon.<span class="fu">MonoBehaviour</span> {
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(UserModel user);
+    Promise&lt;AssetInfo, Error&gt; <span class="fu">Load</span>(OutfitModel outfit);
+}</code></pre>
+<p>The main feature of the <code>PhotonAssetLoader</code> is that if <code>Load()</code> is called while connected to a Photon server, it will cause the same asset to be loaded on the matching <code>GameObject</code> on all clients.</p>
+<p>NOTE: When using the Photon demo you need to apply your Photon AppID to the demo and you need to turn on &quot;Auto-Join Lobby&quot;. Go to window-&gt;Photon Unity Networking-&gt;PUN Wizard-&gt;Locate Photon Server Settings. Ensure your Photon AppID is here and &quot;Auto-Join Lobby&quot; is turned on. &quot;Auto-Join Lobby&quot; can also be turned on programmatically. This setting is important to be aware of.</p>
+<h3 id="assetinfo">AssetInfo</h3>
+<p>The <code>AssetInfo</code> class contains basic information about the asset:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> AssetInfo {
+    <span class="kw">public</span> List&lt;SkeletonData&gt; skeletons;
+}</code></pre>
+<p>The <code>skeletons</code> field is a list of the skeletons on the asset. The first is always the root skeleton. After that come the skeletons of each of the attachments. The <code>SkeletonData</code> provides the following:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">public</span> <span class="kw">class</span> SkeletonData {
+    <span class="kw">public</span> Transform root;
+    <span class="kw">public</span> Transform[] bones;
+
+    <span class="co">// Check if a bone exists, by name</span>
+    <span class="kw">public</span> <span class="dt">bool</span> <span class="fu">HasBone</span>(<span class="dt">string</span> bname);
+    <span class="co">// Get a bone, by name</span>
+    <span class="kw">public</span> Transform <span class="fu">GetBone</span>(<span class="dt">string</span> bname);
+    <span class="co">// Get the index of a bone, by name</span>
+    <span class="kw">public</span> <span class="dt">int</span> <span class="fu">GetBoneIndex</span>(<span class="dt">string</span> bname);
+}</code></pre>
+<p>This allows you to attach geometries or additional behaviours to bones. For instance, it's used heavily by the Equip demo, to attach equipment to bones, or the Ragdoll demo, to attach physics to bones.</p>
+<h3 id="specifying-levels-of-detail">Specifying levels of detail</h3>
+<p>The <code>LocalAssetLoader</code>, <code>UNetAssetLoader</code> and <code>PhotonAssetLoader</code> support loading asset meshes at several different levels of detail and can set up loaded <code>GameObject</code>s to automatically switch between them depending on the percentage of screen space that they occupy. This lets you display assets with dense meshes when close up, when detail is needed, but then switch to meshes with fewer triangles when at a distance, to improve drawing performance.</p>
+<p>By default, they are configured to load each <code>GameObject</code> with several levels of detail and automatically switch between them, which has obvious benefits. However, there are cases when you may want to specify custom level-of-detail settings:</p>
+<ul>
+<li>If you specify fewer levels of detail than the default, the load will make fewer network requests for mesh data, saving some loading time.</li>
+<li>If you specify just one level of detail, the load can omit the <code>LodComponent</code> that does the automated switching between levels, saving some per-frame CPU overhead.</li>
+<li>Custom settings also let you tune the default transition points for display quality or performance.</li>
+</ul>
+<p>Custom level-of-detail settings are specified by passing in a list of <code>LodSetting</code> objects to the <code>lodSetting</code> keyword parameter of the appropriate <code>Load()</code> method. Each <code>LodSetting</code> object specifies a <code>LodLevel</code> and a maximum screen coverage percentage. There are four <code>LodLevel</code>s available:</p>
+<ul>
+<li><code>LodLevel.Maximum</code> - the highest level-of-detail mesh, as originally authored</li>
+<li><code>LodLevel.Medium</code> - an automatically generated mesh with lower level of detail (about 50%)</li>
+<li><code>LodLevel.Low</code> - an automatically generated mesh with very low level of detail (about 10%)</li>
+<li><code>LodLevel.Hidden</code> - displays no meshes at all</li>
+</ul>
+<p>Note that the actual amount of detail reduction depends on the geometry of the mesh. For some models, reduction may not be possible, in which case the original mesh is used for all levels.</p>
+<p>Screen coverage percentage is expressed as a float from 0-100. At runtime, the screen coverage is estimated from the bounding boxes of the meshes, and the level with the smallest coverage value greater than the object's current coverage (capped to 100%) is used. If you do not specify levels up to 100% coverage, the maximum level will be automatically included.</p>
+<p>For example, if we were loading an asset that we know will never be displayed in detail, we could save some network bandwidth by omitting the maximum level when loading, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+    userModel =&gt; <span class="fu">Load</span>(userModel,
+        lodSettings: <span class="kw">new</span> List&lt;LodSetting&gt;() {
+            <span class="kw">new</span> <span class="fu">LodSetting</span>(LodLevel.<span class="fu">Hidden</span>, <span class="fl">0.</span>01f),
+            <span class="kw">new</span> <span class="fu">LodSetting</span>(LodLevel.<span class="fu">Low</span>, <span class="fl">1.</span>0f),
+            <span class="kw">new</span> <span class="fu">LodSetting</span>(LodLevel.<span class="fu">Medium</span>, <span class="fl">100.</span>0f),
+        }
+    )
+).<span class="fu">Catch</span>(
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+};</code></pre>
+<p>Or, if we were loading an asset to only be displayed in detail, we could save some network requests and runtime CPU by loading just the maximum level, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+    userModel =&gt; <span class="fu">Load</span>(userModel,
+        lodSettings: <span class="kw">new</span> List&lt;LodSetting&gt;() {
+            <span class="kw">new</span> <span class="fu">LodSetting</span>(LodLevel.<span class="fu">Maximum</span>, <span class="fl">100.</span>0f),
+        }
+    )
+).<span class="fu">Catch</span>(
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+};</code></pre>
+<h3 id="textureloader">TextureLoader</h3>
+<p>The <code>TextureLoader</code> facilitates the loading images over HTTP into a <code>Texture2D</code>. This is easy to do if you use the WWW class directly, but if you use <code>TextureLoader</code> you'll get the benefits of our network stack, which is much more reliable. The <code>TextureLoader</code> API is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> TextureLoader {
+    <span class="kw">public</span> Promise&lt;Texture2D, Error&gt; <span class="fu">Load</span>(Uri url);
+}</code></pre>
+<h2 id="common-classes">Common Classes</h2>
+<h3 id="error">Error</h3>
+<p>The <code>Error</code> class just encodes a human-readable error message with a machine-readable error code, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="kw">class</span> Error {
+    <span class="kw">public</span> <span class="dt">string</span> message;
+    <span class="kw">public</span> <span class="dt">string</span> code;
+
+    <span class="kw">public</span> <span class="fu">Error</span>(<span class="dt">string</span> message, <span class="dt">string</span> code);
+}</code></pre>
+<p>The error code is typically in the form <code>&lt;SYSTEM&gt;-&lt;NUM&gt;</code>, where <code>&lt;SYSTEM&gt;</code> is the system the error occurred in, and <code>&lt;NUM&gt;</code> is a number that will uniquely identify the error within that system. For instance, errors coming from the <code>LocalAssetLoader</code> are in the form <code>LAL-01</code>, <code>LAL-02</code>, etc. If the same error occurs in multiple places, they should still have unique numbers, in order to aid debugging.</p>
+<h3 id="result">Result</h3>
+<p>A <code>Result</code> represents the result of an operation that can fail. It's generic over two types: a success type and a failure type (called <code>Ok</code> and <code>Err</code>). In order to maintain type safety, the contents of the <code>Result</code> are private. They're accessed through lambdas with the <code>Match()</code>, <code>IfOk()</code> or <code>IfErr()</code> methods.</p>
+<p>In proper computer science terms: <code>Result</code> is a sum type, with simulated pattern matching through the <code>Match()</code>, <code>IfOk()</code> and <code>IfErr()</code> methods.</p>
+<p>The <code>Match()</code> method, for example, works like this:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt; result = <span class="fu">FunctionThatMightFail</span>();
+result.<span class="fu">Match</span>(
+    ok =&gt; <span class="fu">Success</span>(ok),
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+);</code></pre>
+<p>The <code>Match()</code> method will call the appropriate lambda, depending on which type of value the <code>Result</code> actually stores. This means you can't accidentally access the wrong value.</p>
+<p>There is also a variant of the <code>Match()</code> method which returns a value, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt; result = <span class="fu">FunctionThatMightFail</span>();
+<span class="dt">int</span> output = result.<span class="fu">Match</span>(
+    ok =&gt; ok,
+    error =&gt; { Debug.<span class="fu">Log</span>(error); <span class="kw">return</span> <span class="dv">0</span>; }
+);</code></pre>
+<p>Note that the return types of the lambdas passed to <code>Match()</code> must be the same, because <code>Match()</code> itself can only have one return type.</p>
+<p>If you only care about one branch of the <code>Match()</code> you can use <code>IfOk()</code> or <code>IfErr()</code> instead. The first is given a lambda that will only be called if there is an <code>Ok</code> value, and the second a lambda that will only be called if there is an <code>Err</code> value. For example:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt; result = <span class="fu">FunctionThatMightFail</span>();
+result.<span class="fu">IfOk</span>(ok =&gt; <span class="fu">Success</span>(ok));
+result.<span class="fu">IfErr</span>(error =&gt; Debug.<span class="fu">Log</span>(error));</code></pre>
+<p>Like with the <code>Match()</code> method, these have variants that will return a value. However, since they're not complete (that is, there isn't a lambda for every case), they also need to provide a default value, which will be returned if the lambda isn't called. Of course, the type of the default value must be the same as the return type of the lambda. For example:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt; result = <span class="fu">FunctionThatMightFail</span>();
+<span class="dt">int</span> output = result.<span class="fu">IfOk</span>(ok =&gt; ok, <span class="dv">0</span>);</code></pre>
+<p>You might be wondering why we would use this to return errors, instead of just throwing exceptions. The reason is that exceptions greatly increase the code size of Unity's WebGL builds. When we turn off exceptions we still needed a way to propogate errors. Having adopted <code>Result</code> to do this, we found it a very useful pattern.</p>
+<p>The <code>Result</code> class also contains <code>IsOk()</code> and <code>IsErr()</code>, but it's recommended that these not be used outside of tests.</p>
+<p>If you find yourself wanting to generate a <code>Result</code>, it has two static factory functions, one that takes an <code>Ok</code> and one that takes an <code>Err</code>. Examples of creating a <code>Result</code>:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs"><span class="dt">var</span> ok = IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt;.<span class="fu">Ok</span>(<span class="dv">42</span>);
+<span class="dt">var</span> err = IMVU.<span class="fu">Result</span>&lt;<span class="dt">int</span>, Error&gt;.<span class="fu">Err</span>(<span class="kw">new</span> <span class="fu">Error</span>(<span class="st">&quot;Error!&quot;</span>, <span class="st">&quot;ERR-01&quot;</span>));</code></pre>
+<h3 id="promise">Promise</h3>
+<p>A <code>Promise</code> represents a value that may not exist yet. This is designed to function very much like a JavaScript promise, even mirroring its API as closely as possible. Think of it as an asynchronous <code>Result</code>. The difference is that when you give it lambdas to be called for the different types, those lambdas won't be called until the promise is resolved. If the promise is already resolved, they'll be called immediately.</p>
+<p>If you want to give the promise just a success callback, you can use the <code>Then()</code> method. For example:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+    userModel =&gt; <span class="fu">doStuffWithUserModel</span>(userModel)
+);</code></pre>
+<p>The <code>Then()</code> method also has a form that accepts both success and failure callbacks, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+    userModel =&gt; <span class="fu">doStuffWithUserModel</span>(),
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+);</code></pre>
+<p>If you only want an error callback, you can use the <code>Catch()</code> method. For example:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Catch</span>(
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+);</code></pre>
+<p>Note that <code>Then()</code> and <code>Catch()</code> always return another promise. This allows you to chain promises, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Then</span>(
+    userModel =&gt; Debug.<span class="fu">Log</span>(userModel.<span class="fu">info</span>.<span class="fu">username</span>)
+).<span class="fu">Catch</span>(
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+);</code></pre>
+<p>Note that if any of the promises in this chain fail, they will fall through to the <code>Catch()</code> at the end. Successes will likewise fall through if there are multiple <code>Catch()</code> calls chained with a <code>Then()</code> at the end. The rules for what kind of promise is created are a bit complicated, but the results are generally fairly intuitive.</p>
+<p>Promise allbacks must return one of three things:</p>
+<ul>
+<li>Nothing</li>
+<li>A <code>Result</code></li>
+<li>A <code>Promise</code></li>
+</ul>
+<p>If only an <code>Accept</code> callback is provided, then the <code>Reject</code> type of the new <code>Promise</code> is the same as the old <code>Promise</code>. This allows a <code>Reject</code> to cascade through to the next <code>Reject</code> callback. Likewise, if only a <code>Reject</code> callback is provided, then the <code>Accept</code> type of the new <code>Promise</code> is the same as the old <code>Promise</code>. This allows an <code>Accept</code> to cascade through to the next <code>Accept</code> callback. If both callbacks are provided to <code>Then()</code>, then their return types must match, and that type returns the full type of the resulting <code>Promise</code>.</p>
+<p>When nothing or a <code>Result</code> is returned, the resulting promise is resolved as soon as the callback completes. If a <code>Promise</code> is returned, then the resulting <code>Promise</code> is resolved whenever this promise resolves. When nothing is returned, the appropriate type in the new promise is a special type called <code>Unit</code>, which will always be <code>null</code>.</p>
+<p><code>Promise</code> also provides a function called <code>Branch</code>, which is useful when you want to do multiple things in one step of a promise chain, and if either of them fail you want to fall through to a common <code>Catch</code>. It's usage is as follows:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Imvu.<span class="fu">Login</span>().<span class="fu">Branch</span>(
+    userModel =&gt; Debug.<span class="fu">Log</span>(<span class="st">&quot;My name is &quot;</span> + userModel.<span class="fu">info</span>.<span class="fu">username</span>)
+    userModel =&gt;
+        userModel.<span class="fu">GetFriends</span>().<span class="fu">Then</span>(
+            friendCollection =&gt; Debug.<span class="fu">Log</span>(<span class="st">&quot;I have &quot;</span> + friendCollection.<span class="fu">info</span>.<span class="fu">TotalCount</span> + <span class="st">&quot; friends&quot;</span>)
+        )
+).<span class="fu">Catch</span>(
+    error =&gt; Debug.<span class="fu">Log</span>(error)
+);</code></pre>
+<p>Both of the lambdas in <code>Branch</code> will be called with the same value. The promise returned by <code>Branch</code> has a success type of <code>Unit</code>.</p>
+<p>Finally, <code>Promise</code> provides a static function called <code>All</code>. This takes a list of <code>Promise</code>s of the same type, and returns a <code>Promise</code> of a list of that type. If any one of the passed-in <code>Promise</code>s is rejected, the new <code>Promise</code> is rejected with the first rejection value it gets. If they're all accepted, the new <code>Promise</code> is accepted with a <code>List</code> of all their values. For instance, you can take a <code>List&lt;Promise&lt;int, Error&gt;&gt;</code> and turn it into a <code>Promise&lt;List&lt;int&gt;, Error&gt;</code>, like so:</p>
+<pre class="sourceCode cs"><code class="sourceCode cs">Promise&lt;<span class="dt">int</span>, Error&gt;.<span class="fu">All</span>(promiseList);</code></pre>
+<p>If this all seems complicated, don't worry too much about it. It works out to be pretty intuitive. See the <code>FriendListLoader</code> class used by the Friends demo for an example of all of these features working together.</p>
+</body>
+</html>
